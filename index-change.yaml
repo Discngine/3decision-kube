@@ -1,0 +1,58 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: index-change
+  namespace: choral
+spec:
+  restartPolicy: OnFailure
+  containers:
+  - name: index-change
+    image: fra.ocir.io/discngine1/3decision_kube/sqlcl
+    command: ["/bin/bash", "-c"]
+    env:
+    - name: DBConnectionString
+      value: hostname:1521/ORCL
+    - name: DBPassword
+      value: Ch4ng3m3f0rs3cur3p4ss
+    args:
+    - echo -ne '
+      WHENEVER SQLERROR EXIT SQL.SQLCODE;\n
+      CREATE INDEX IDX_CHOR_STR_SMALL_MOL_SMILES ON STRUCTURE_SMALL_MOL(SMILES) INDEXTYPE IS CHORAL_OWNER.STRICT_IDXTYPE;\n
+      CREATE INDEX IDX_CHOR_TAU_SMALL_MOL_SMILES ON STRUCTURE_SMALL_MOL(SMILES) INDEXTYPE IS CHORAL_OWNER.TAUTOMER_IDXTYPE;\n
+      CREATE INDEX IDX_CHOR_TAUISO_SMS ON STRUCTURE_SMALL_MOL(SMILES) INDEXTYPE IS CHORAL_OWNER.TAUTOMER_ISOMER_IDXTYPE;\n
+      CREATE INDEX IDX_CHOR_STRISO_SMS ON STRUCTURE_SMALL_MOL(SMILES) INDEXTYPE IS CHORAL_OWNER.STRICT_ISOMER_IDXTYPE;\n' > pd_t1_index.sql;
+      exit | /root/sqlcl/bin/sql PD_T1_DNG_THREEDECISION/${DBPassword}@${DBConnectionString} @pd_t1_index.sql;
+      ret=$?;
+      if [ $ret -ne 0 ]; then
+        echo -ne '
+        DROP INDEX IDX_CHOR_STR_SMALL_MOL_SMILES;\n
+        DROP INDEX IDX_CHOR_TAU_SMALL_MOL_SMILES;\n
+        DROP INDEX IDX_CHOR_TAUISO_SMS;\n
+        DROP INDEX IDX_CHOR_STRISO_SMS;\n' > delete_pd_t1_index.sql;
+        exit | /root/sqlcl/bin/sql PD_T1_DNG_THREEDECISION/${DBPassword}@${DBConnectionString} @delete_pd_t1_index.sql;        
+      exit 1;
+      fi;
+      echo -ne '
+      WHENEVER SQLERROR EXIT SQL.SQLCODE;\n
+      CREATE INDEX IDX_CHOR_STR_CMP_STRUC ON COMPOUND_STRUCTURES(CANONICAL_SMILES) INDEXTYPE IS CHORAL_OWNER.STRICT_IDXTYPE;\n
+      CREATE INDEX IDX_CHOR_TAU_CMP_STRUC ON COMPOUND_STRUCTURES(CANONICAL_SMILES) INDEXTYPE IS CHORAL_OWNER.TAUTOMER_IDXTYPE;\n
+      CREATE INDEX IDX_CHOR_TAUISO_CMP_STRUC ON COMPOUND_STRUCTURES(CANONICAL_SMILES) INDEXTYPE IS CHORAL_OWNER.TAUTOMER_ISOMER_IDXTYPE;\n
+      CREATE INDEX IDX_CHOR_STRICT_CMP_STRUC ON COMPOUND_STRUCTURES(CANONICAL_SMILES) INDEXTYPE IS CHORAL_OWNER.STRICT_ISOMER_IDXTYPE;\n' > chembl_29_index.sql;
+      exit | /root/sqlcl/bin/sql CHEMBL_29/${DBPassword}@${DBConnectionString} @chembl_29_index.sql;
+      ret=$?;
+      if [ $ret -ne 0 ]; then
+        echo -ne '
+        DROP INDEX IDX_CHOR_STR_CMP_STRUC;\n
+        DROP INDEX IDX_CHOR_TAU_CMP_STRUC;\n
+        DROP INDEX IDX_CHOR_TAUISO_CMP_STRUC;\n
+        DROP INDEX IDX_CHOR_STRICT_CMP_STRUC;\n' > delete_chembl_29_index.sql;
+        exit | /root/sqlcl/bin/sql CHEMBL_29/${DBPassword}@${DBConnectionString} @delete_chembl_29_index.sql;        
+        exit 1;
+      fi;
+    resources:
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 150m
+        memory: 250Mi
